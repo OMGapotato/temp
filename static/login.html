@@ -1,0 +1,35 @@
+<!doctype html>
+<html ng-app="login">
+<head>
+    <link rel="stylesheet" href="css/login.css">
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/font-awesome.min.css">
+
+    <script type="text/javascript" src="js/lib/angular.min.js"></script>
+    <script type="text/javascript" src="js/lib/angular-cookies.min.js"></script>
+
+    <script type="text/javascript" src="js/login/login.module.js"></script>
+    <script type="text/javascript" src="js/login/login.controller.js"></script>	
+    <script type="text/javascript" src="js/core/core.module.js"></script>
+    <script type="text/javascript" src="js/core/data.service.js"></script>
+</head>
+<body ng-controller="LoginController">
+    <div class="col-md-6 col-md-offset-3">
+        <h2>Login</h2>
+        <form name="form" ng-submit="login()" role="form">
+            <div class="form-group" ng-class="{ 'has-error': form.password.$dirty && form.password.$error.required }">
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password" class="form-control" ng-model="password" required />
+                <span ng-show="form.password.$dirty && form.password.$error.required" class="help-block">Password is required</span>
+            </div>
+            <div class="form-actions">
+                <button type="submit" ng-disabled="form.$invalid || dataLoading" class="btn btn-primary">Login</button>
+            </div>
+        </form>
+         <div class="flashAlert" style="margin-top:15px" ng-show="flash.getMessage()">
+            <b>Alert!</b>
+            <p>{{flash.getMessage()}}</p>
+        </div>
+    </div>
+</body>
+</html>

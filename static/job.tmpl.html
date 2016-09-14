@@ -1,0 +1,24 @@
+<div ng-repeat="item in jobs" layout-align="top center">
+    <md-toolbar md-theme="lightTheme" style="margin-bottom:10px;min-height:40px; height:40px; background:rgba(3,169,244, 0.4)">
+        <md-button class="md-icon-button" ng-click="showArtifactList()" style="position:absolute">
+            <i class="material-icons">expand_more</i>
+        </md-button>
+        <h1 class="md-toolbar-tools" style="padding-left:45px"> {{item.name}} </h1>
+        <md-button class="md-icon-button" ng-click="deleteJob(item, jobs)" style="position:absolute; right:0px; top:0px">
+            <i class="material-icons">clear</i>
+        </md-button>
+        <md-button class="md-icon-button" ng-click="addArtifact(item.name, item.artifacts)" style="position:absolute; right:40px; top:0px">
+            <i class="material-icons">add_circle</i>
+        </md-button>
+    </md-toolbar>
+    <md-list layout="column">
+        <md-list-item class="md-1-line" ng-repeat="artifact in item.artifacts track by $index">
+            <div class="md-list-item-text" layout="column">
+                {{artifact}}
+            </div>
+            <md-button class="md-secondary" ng-click="deleteArtifact(artifact, item.artifacts)">
+                <i class="material-icons">clear</i>
+            </md-button>
+        </md-list-item>
+    </md-list>
+</div>

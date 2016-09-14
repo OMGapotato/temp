@@ -1,0 +1,29 @@
+body {
+    color: #c0392b;
+    padding: 10px
+}
+
+table, th, td {
+    border: 1px solid black;
+    font-size: 90%;
+    padding: 5px;
+}
+
+td, th {
+}
+
+.tdCust {
+    padding: 5px;
+    max-width: 655px;
+    height: 250px;
+    position: fixed;
+    overflow-wrap: break-word;
+    overflow-y: scroll;
+}
+
+.cell {
+    padding-left: 10px;
+    padding-right: 10px;
+    vertical-align: top
+}
+

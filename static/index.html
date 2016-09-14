@@ -1,0 +1,114 @@
+<!doctype html>
+<html ng-app="app">
+<head>
+    <meta charset="utf-8">
+    <title>Release Builder</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="css/font-awesome.min.css">
+    <link rel="stylesheet" href="css/angular-material.min.css">
+    <script type="text/javascript" src="js/lib/angular.min.js"></script>
+    <script type="text/javascript" src="js/lib/angular-cookies.min.js"></script>
+    <script type="text/javascript" src="js/lib/angular-material.min.js"></script>
+    <script type="text/javascript" src="js/lib/angular-animate.min.js"></script>
+    <script type="text/javascript" src="js/lib/angular-aria.min.js"></script>
+    <script type="text/javascript" src="js/lib/angular-messages.min.js"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <script type="text/javascript" src="js/app.module.js"></script>
+    <script type="text/javascript" src="js/core/core.module.js"></script>
+    <script type="text/javascript" src="js/core/data.service.js"></script>
+    <script type="text/javascript" src="js/r1BuilderUI/r1BuilderUI.module.js"></script>
+    <script type="text/javascript" src="js/r1BuilderUI/r1BuilderUI.controller.js"></script>
+    <script type="text/javascript" src="js/r1BuilderUI/r1BuilderUI.directive.js"></script>
+    <link rel="icon" type="image/png" href="favicon-200x200.png-t=1472586321334">
+</head>
+<body ng-controller="R1BuilderUIController">
+    <div layout="column" style="height:100vh" ng-cloak>
+        <md-toolbar md-theme="default">
+            <h1 class="md-toolbar-tools"> Main </h1>
+            <md-button class="md-icon-button" ng-click="addVersion()" style="right:10px; position:absolute; top:11px">
+                <i class="material-icons">settings</i>
+            </md-button>
+        </md-toolbar>
+        <section layout="row" flex>
+            <md-sidenav class="md-sidenav-left"
+                md-component-id="left" 
+                md-is-locked-open="$mdMedia('gt-md')" 
+                md-whiteframe="4">
+                <md-toolbar md-theme="lightTheme">
+                    <h1 class="md-toolbar-tools">Build Versions</h1>
+                    <md-button class="md-icon-button" ng-click="addVersion()" style="position:absolute; top:11px; right:0">
+                        <i class="material-icons">add_circle</i>
+                    </md-button>
+                </md-toolbar>
+                <md-content layout-padding ng-controller="LeftCtrl" style="padding:0">
+                    <md-list flex>
+                        <md-list-item class="md-1-line" 
+                            ng-repeat="build in BBSBuilds" 
+                            ng-click="outputBuild(build.artifacts)">
+                            <div class="md-list-item-text" layout="column">
+                                <h3>{{build.version}}</h3>
+                                <h5>{{build.tags[0]}}</h5>
+                            </div>
+                        </md-list-item>
+                    </md-list>
+                    <md-button ng-click="close()" class="md-primary" hide-gt-md>
+                        Close Sidenav Left
+                    </md-button>
+                    <p hide show-gt-md>
+                    This sidenav is locked open on your device. To go back to the default behavior,
+                    narrow your display.
+                    </p>
+                </md-content>
+
+            </md-sidenav>
+            <md-content flex layout-padding>
+                <div layout="column" layout-align="top center">
+                    <div>
+                        <md-button ng-click="toggleLeft()" class="md-primary" hide-gt-md>
+                            View Previous Build Versions
+                        </md-button>
+                    </div>
+                    <!--
+                    <div>
+                        <md-button ng-click="toggleRight()"
+                                   ng-hide="isOpenRight()"
+                                   class="md-primary">
+                            Toggle right
+                        </md-button>
+                    </div>
+                    -->
+                </div>
+                <div layout="row" layout-align="end none">
+                    <md-button ng-click="build()" class="md-primary md-raised" style="padding-bottom:0">
+                        Build
+                    </md-button> 
+                </div>
+                <div style="margin-right:120px; margin-left:120px">
+                    <job></job>
+                </div>
+            </md-content>
+            <!--
+            <md-sidenav class="md-sidenav-right md-whiteframe-4dp" md-component-id="right">
+                <md-toolbar class="md-theme-light">
+                    <h1 class="md-toolbar-tools">Sidenav Right</h1>
+                </md-toolbar>
+                <md-content ng-controller="RightCtrl" layout-padding>
+                    <form>
+                        <md-input-container>
+                            <label for="testInput">Test input</label>
+                            <input type="text" id="testInput"
+                                               ng-model="data" md-autofocus>
+                        </md-input-container>
+                    </form>
+                    <md-button ng-click="close()" class="md-primary">
+                        Close Sidenav Right
+                    </md-button>
+                </md-content>
+            </md-sidenav>
+            -->
+        </section>
+    </div>
+</body>
+</html>
