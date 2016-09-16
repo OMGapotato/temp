@@ -8,13 +8,52 @@
                     .primaryPalette('light-blue')
             })
         .controller('R1BuilderUIController', R1BuilderUIController)
+        .controller('DialogController', DialogController)
         .controller('LeftCtrl', LeftCtrl)
         //.controller('RightCtrl', RightCtrl)
 
+    DialogController.$inject = ['$scope'];
+    function DialogController($scope){
 
-    R1BuilderUIController.$inject = ['$scope', '$q', '$timeout', '$interval', 'dataservice', '$mdSidenav', '$log'];
-    function R1BuilderUIController($scope, $q, $timeout, $interval, dataservice, $mdSidenav, $log) {
-        
+        console.log($scope.ctrl.locals.parent.artifactList);
+        $scope.artifactList = $scope.ctrl.locals.parent.artifactList;
+        $scope.selectedArtifacts = [];
+        //$scope.ctrl.locals.parent.dialog = "set this from dialog controller";
+    }
+
+    R1BuilderUIController.$inject = ['$scope', '$q', '$timeout', '$interval', 'dataservice', '$mdSidenav', '$mdDialog', '$log'];
+    function R1BuilderUIController($scope, $q, $timeout, $interval, dataservice, $mdSidenav, $mdDialog, $log) {
+       
+        activate();
+        function activate() {
+            $scope.testing = "Testing";
+            getSystems();
+            getArtifacts();
+        }
+ 
+        function getSystems() {
+            dataservice.getSystems().then(function(data) {
+                $scope.jobs = data.data; 
+            });
+        }
+
+        function getArtifacts() {
+            dataservice.getArtifacts().then(function(data) {
+                $scope.completeList = data.data;
+                var len = $scope.completeList.length;
+                $scope.artifactList = [];
+                for (var i=0; i<len; i++) {
+                    var buildLen = $scope.completeList[i].BuildHistory.length;
+                    for (var j=0; j<buildLen; j++) {
+                        var artLen = $scope.completeList[i].BuildHistory[j].artifacts.length;
+                        for (var h=0; h<artLen; h++) {
+                            $scope.artifactList.push($scope.completeList[i].BuildHistory[j].artifacts[h]);
+                        }
+                    }
+                }//end for
+            });
+        }
+
         $scope.outputBuild = function outputBuild(artifacts) {
             $scope.artifacts = artifacts;
         }
@@ -33,55 +72,29 @@
             artifactList.push(name + ' new artifact1');
         }
 
-/*
-        type Job struct {
-            name        string
-            build       int
-            artifacts   []string
+        $scope.showArtifactList = function showArtifactList() {
+            console.log($scope.dialog);
         }
 
-        type Build struct {
-            version    string
-            tags       []string
-            artifacts  []string
+        $scope.showPrompt = function showPrompt(ev) {
+
+            $mdDialog.show({
+                locals: {parent: $scope},
+                controller: DialogController,
+                controllerAs: 'ctrl',
+                bindToController: true,
+                templateUrl: 'dialog.tmpl.html',
+                parent: angular.element(document.body),
+                targetEvent: ev,
+                clickOutsideToClose:true,
+                fullscreen: $scope.customFullscreen // Only for -xs, -sm breakpoints.
+            })
+            .then(function(answer) {
+                $scope.status = 'You said the information was "' + answer + '".';
+            }, function() {
+                $scope.status = 'You cancelled the dialog.';
+            });
         }
-*/
-        // /rest/:job -> returns an array of job objects. object contains job name, build number, and list of artifacts
-        //
-        //    type Job struct {
-        //        name        string
-        //        build       int
-        //        artifacts   []string
-        //    }
-        //
-        // /rest/:job/:build -> returns list of artifacts for that job name and build number
-        $scope.jobs = [
-            {
-                name: 'ServerBackup-5.14.0',
-                build: '410',
-                artifacts: ['idera-hotcopy-amd64-5.14.4.deb','r1soft-cdp-agent-amd64-5.14.4-434.deb','r1soft-cdp-async-agent-amd64-5.14.4-434.deb']
-            },
-            {
-                name: 'ServerBackup-5.14.0',
-                build: '420',
-                artifacts: ['idera-hotcopy-amd64-5.14.6.deb','r1soft-cdp-agent-amd64-5.14.6-455.deb','r1soft-cdp-async-agent-amd64-5.14.6-455.deb']
-            },
-            {
-                name: 'ServerBackup-5.14.0',
-                build: '430',
-                artifacts: ['idera-hotcopy-amd64-5.16.0.deb','r1soft-cdp-agent-amd64-5.16.0-466.deb','r1soft-cdp-async-agent-amd64-5.16.0-466.deb']
-            },
-            {
-                name: 'BBS-2.0',
-                build: '40',
-                artifacts: ['r1rm-2.1.0-23.deb','ServerBackup-6.0.1-84.deb','r1ctl-2.1.0-23']
-            },
-            {
-                name: 'BBS-2.0',
-                build: '38',
-                artifacts: ['r1rm-2.0.0-21.deb','ServerBackup-6.0.0-42.deb','r1ctl-2.0.0-21']
-            },
-        ];
 
         //  /rest/:job/builds -> returns all build versions
         //  /rest/:job/build/:version -> returns a list tags and artifacts of build version
@@ -127,8 +140,6 @@
             }
 
         ];
-
-
 
         $scope.toggleLeft = buildDelayedToggler('left');
         /*

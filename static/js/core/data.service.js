@@ -11,11 +11,13 @@
 
     function dataservice($http, $q, $rootScope, $cookieStore, Base64, exception, logger) {
 
-        //var server = 'http://10.80.65.21:4050/rest';
-        var server = 'http://10.0.0.4:4050/rest';
+        var server = 'http://10.80.65.21:4030/rest';
+        //var server = 'http://10.0.0.4:4030/rest';
 
         var service = {
-            auth:               auth
+            auth:               auth,
+            getSystems:         getSystems,
+            getArtifacts:       getArtifacts
         };
 
         return service;
@@ -46,6 +48,34 @@
                     console.log(error);
                     return error;
                 });
+        }
+
+        function getSystems() {
+            return $http({
+                method: 'GET',
+                url: server + '/systems'
+            })
+            .then(function(data, status, headers, config) {
+                return data;
+            }, function(error) {
+                console.log('XHR failed for getting cloud systems');
+                console.log(error);
+                return error;
+            });
+        }
+
+        function getArtifacts() {
+            return $http({
+                method: 'GET',
+                url: server + '/artifacts'
+            })
+            .then(function(data, status, headers, config) {
+                return data;
+            }, function(error) {
+                console.log('XHR failed for getting artifacts');
+                console.log(error);
+                return error;
+            });
         }
     }
 

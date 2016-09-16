@@ -3,11 +3,8 @@
         <md-button class="md-icon-button" ng-click="showArtifactList()" style="position:absolute">
             <i class="material-icons">expand_more</i>
         </md-button>
-        <h1 class="md-toolbar-tools" style="padding-left:45px"> {{item.name}} </h1>
-        <md-button class="md-icon-button" ng-click="deleteJob(item, jobs)" style="position:absolute; right:0px; top:0px">
-            <i class="material-icons">clear</i>
-        </md-button>
-        <md-button class="md-icon-button" ng-click="addArtifact(item.name, item.artifacts)" style="position:absolute; right:40px; top:0px">
+        <h1 class="md-toolbar-tools" style="padding-left:45px"> {{item}} </h1>
+        <md-button class="md-icon-button" ng-click="showPrompt($event)" style="position:absolute; right:0px; top:0px">
             <i class="material-icons">add_circle</i>
         </md-button>
     </md-toolbar>

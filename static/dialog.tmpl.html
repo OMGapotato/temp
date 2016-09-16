@@ -1,0 +1,43 @@
+<md-dialog aria-label="Mango (Fruit)">
+  <form ng-cloak>
+    <md-toolbar>
+      <div class="md-toolbar-tools">
+        <input type="text" class="form-control" placeholder="Search" ng-model="searchArtifact">
+        <md-button class="md-icon-button" ng-click="cancel()">
+            <i class="material-icons">close</i>
+        </md-button>
+      </div>
+    </md-toolbar>
+
+    <md-dialog-content>
+        <div layout="row">
+            <h2 class="md-title">Selected Items</h2>
+        </div>
+        <div layout="column">
+            <div class="md-dialog-content" >
+                <md-list ng-repeat="artifact in artifactList | filter:searchArtifact">
+                    <md-list-item class="md-1-line" ng-click="">
+                        <md-checkbox >
+                        </md-checkbox>
+                        <div class="md-list-item-text" layout="column">
+                            {{artifact}}
+                        </div>
+                        <!--
+                        <md-button class="md-secondary" ng-click="deleteArtifact(artifact, item.artifacts)">
+                            <i class="material-icons">clear</i>
+                        </md-button>
+                        -->
+                    </md-list-item>
+                </md-list>
+            </div>
+        </div>
+    </md-dialog-content>
+
+    <md-dialog-actions layout="row">
+      <span flex></span>
+      <md-button ng-click="answer('useful')">
+        Add
+      </md-button>
+    </md-dialog-actions>
+  </form>
+</md-dialog>
