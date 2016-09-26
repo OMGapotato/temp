@@ -1,0 +1,28 @@
+{
+	"BuildMasters": ["sbci.do.r1soft.com", "ci.do.r1soft.com"],
+	"JobFilters": [
+		"BBS-2.1",
+		"BBS-2.0",
+		"ServerBackup-6.0.x",
+		"ServerBackup-6.2.x",
+		"r1SCSI-master",
+		"r1scsifs-master",
+		"c247tools-master",
+		"c247cis-master",
+		"c247ufw-master",
+		"c247mon-master"
+	],
+
+	"Systems": {
+		"r1rm": ["c247cis","ufw-r1rm","r1rm","c247mon"],
+		"r1cm": ["c247cis","ufw-r1cm","r1cm","c247mon"],
+		"cloud": ["c247cis", "cloud-sbm","ufw-cloud","r1soft-docstore","dr-tools",
+			"serverbackup-manager","serverbackup-enterprise","serverbackup-setup",
+			"r1ctl-cloud","r1scsi","c247tools","c247skiff","c247mon"],
+		"ftp": ["c247cis","ufw-ftp","r1ctl-ftp", "c247skiff", "r1scsifs", "c247mon",
+			"serverbackup-agent","serverbackup-async-agent-2-6", "serverbackup-enterprise-agent", "serverbackup-setup"],
+		"site": ["site-sbm","ufw-site","c247cis","r1soft-docstore","dr-tools","serverbackup-manager","serverbackup-enterprise","serverbackup-setup","r1ctl","r1scsi","r1scsifs"],
+		"seed": ["site-sbm","ufw-site","c247cis","r1soft-docstore","dr-tools","serverbackup-manager","serverbackup-enterprise","serverbackup-setup","r1ctl-sdstation","sdstation","r1scsi"],
+		"print": ["site-sbm","ufw-site","c247cis","r1soft-docstore","dr-tools","serverbackup-manager","serverbackup-enterprise","serverbackup-setup","r1ctl-pstation","r1scsi"]
+	}
+}
