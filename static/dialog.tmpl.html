@@ -1,4 +1,4 @@
-<md-dialog aria-label="Mango (Fruit)">
+<md-dialog aria-label="artifact dialog">
   <form ng-cloak>
     <md-toolbar>
       <div class="md-toolbar-tools">
@@ -8,34 +8,56 @@
         </md-button>
       </div>
     </md-toolbar>
-
     <md-dialog-content>
-        <div layout="row">
-            <h2 class="md-title">Selected Items</h2>
+        <div layout="row" style="padding-top: 15px; padding-left:20px; padding-right:20px">
+            <md-input-container>
+                <label>Package</label>
+                <md-select ng-model="selectedPackage" md-on-close="setJobList(selectedPackage)">
+                    <md-option ng-repeat="package in systemPackageList" value="{{package}}">{{package}}</md-option>
+                </md-select>
+            </md-input-container>
+            <md-input-container>
+                <label>Job</label>
+                <md-select ng-model="selectedJob" md-on-close="setVersionList(selectedJob, selectedPackage)">
+                    <md-option ng-repeat="job in jobList" value="{{job}}">{{job}}</md-option>
+                </md-select>
+            </md-input-container>
+            <md-input-container>
+                <label>Version</label>
+                <md-select ng-model="selectedVersion" multiple="true">
+                    <md-option ng-repeat="version in versionList" value="{{version}}">{{version}}</md-option>
+                </md-select>
+            </md-input-container>
         </div>
-        <div layout="column">
-            <div class="md-dialog-content" >
-                <md-list ng-repeat="artifact in artifactList | filter:searchArtifact">
-                    <md-list-item class="md-1-line" ng-click="">
-                        <md-checkbox >
-                        </md-checkbox>
-                        <div class="md-list-item-text" layout="column">
-                            {{artifact}}
-                        </div>
-                        <!--
-                        <md-button class="md-secondary" ng-click="deleteArtifact(artifact, item.artifacts)">
-                            <i class="material-icons">clear</i>
-                        </md-button>
-                        -->
-                    </md-list-item>
-                </md-list>
+            <div layout="row" ng-repeat="artifact in selected" style="padding-left:20px; padding-right:20px">
+                {{artifact.Name}} | Job: {{artifact.Job}} | Version: {{artifact.Version}}<br>
             </div>
+        <div class="md-dialog-content">
+            <div layout="row" 
+                style="visibility: visible;
+                        position: absolute;
+                        top: 80%;
+                        left: 59%;
+                        margin-top: -50px;
+                        margin-left: -50px;"
+                ng-style="{'visibility': progressVisible}">
+                <md-progress-circular md-mode="indeterminate"></md-progress-circular>
+            </div>
+            <md-list ng-repeat="artifact in artifactList | filter:searchArtifact | sysPackageFilter:selectedPackage:'Name' | sysPackageFilter:selectedJob:'Job' | sysPackageFilter:selectedVersion:'Version'">
+                <md-checkbox ng-checked="exists(artifact, selected)" ng-click="toggle(artifact, selected)">
+                    <md-list-item class="md-1-line" ng-click="">
+                        <div class="md-list-item-text" layout="column">
+                            {{artifact.Name}} | Job: {{artifact.Job}} | Version: {{artifact.Version}}<p ng-if="checkArtifact(artifact)">| Build: {{artifact.Build}}</p> 
+                        </div>
+                    </md-list-item>
+                </md-checkbox>
+            </md-list>
         </div>
     </md-dialog-content>
 
     <md-dialog-actions layout="row">
       <span flex></span>
-      <md-button ng-click="answer('useful')">
+      <md-button ng-click="addSelectedArtifacts(selected)">
         Add
       </md-button>
     </md-dialog-actions>

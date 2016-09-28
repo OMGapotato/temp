@@ -15,6 +15,10 @@ import (
     "errors"
     "strconv"
     "reflect"
+    "os"
+    "io"
+    "archive/tar"
+    "compress/gzip"
 
     "github.com/ContinuumLLC/BBS/r1util"
 )
@@ -48,6 +52,12 @@ type JenkinsBuild struct {
     Artifacts []string `json:"artifacts"`
 }
 
+type JenkinsOldBuild struct {
+    Successful bool
+    Url string
+    Artifacts []string
+}
+
 type Build struct {
     BuildNum string
     Successful bool
@@ -61,6 +71,16 @@ type Artifact struct {
     Job string
     Version string
     Build string
+}
+
+type SystemBuildArtifact struct {
+    System string `json:"Name"`
+    Artifacts []Artifact `json:"SelectedArtifacts"`
+}
+
+type BuildVersion struct {
+    Version string `json:"Version"`
+    Systems []SystemBuildArtifact `json:"SysPackageList"`
 }
 
 func startRouter(port int) {
@@ -77,25 +97,36 @@ func startRouter(port int) {
     router.AddRoute("GET", "/rest/system/artifacts/initialize", initializeSystemArtifactsHandler)
     router.AddRoute("GET", "/rest/:system/artifacts", systemArtifactsHandler)
 
-    //really need to get rid of these eventually
+    //really need to get rid of these eventually...
+    //mirrored alex jenkins ruby rest service so my old code would work...
+    //currently calling own rest service instead of alex jenkins...
+    //need to start from scratch...
     router.AddRoute("GET", "/rest/jobs", jobsHandler)
     router.AddRoute("GET", "/rest/jobs/:job", jobBuildHandler)
-    router.AddRoute("GET", "/rest/jobs/:job/:build" jobBuildHandler)
+    router.AddRoute("GET", "/rest/jobs/:job/:build", jobBuildHandler)
 
     router.AddRoute("POST", "/rest/build", initializeBuildHandler)
-
-    router.AddRoute("GET", "/rest/test", testHandler)
+    //for now configured for cloud only
+    router.AddRoute("GET", "/rest/build/versions", buildVersionHandler)
+    router.AddRoute("GET", "/rest/build/:version", getBuildVersionInfoHandler)
+    router.AddRoute("GET", "/rest/build/:version/download", downloadBuildVersionHandler)
 
     setSettings()
+    setSystems()
     router.Run()
 }
-
+    
 var settings Settings
+var systems []System
 
 type Settings struct {
     BuildMasters []string `json:"BuildMasters"`
     JobFilters []string `json:"JobFilters"`
-    Systems []string `json:"Systems"`
+}
+
+type System struct {
+    System string `json:"System"`
+    Packages []string `json:"Packages"`
 }
 
 func setSettings() {
@@ -105,6 +136,18 @@ func setSettings() {
     }
        
     err = json.Unmarshal(b, &settings)
+    if err != nil {
+        fmt.Println(err)
+    }
+}
+
+func setSystems() {
+    b, err := ioutil.ReadFile("/home/jkwon/Git/releaseBuilder/systems.json")
+    if err != nil {
+        fmt.Println(err)
+    }
+
+    err = json.Unmarshal(b, &systems)
     if err != nil {
         fmt.Println(err)
     }
@@ -124,14 +167,18 @@ func jobsHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[stri
 
 func jobBuildHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
 
+    build := parsedURL["build"]
     job := parsedURL["job"]
     var port string
     var buildServer string
     
     var jobObj Job
+    var oldJob JenkinsOldBuild
+    var artifactList []string
+    var buildNumList []int64
+    buildFound := false
     jobObj.Name = job
     
-
     isSbmJob := strings.Contains(job, "ServerBackup")
     if isSbmJob {
         buildServer = "sbci.do.r1soft.com"
@@ -159,7 +206,6 @@ func jobBuildHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[
     // configure this in case we need to use windows and linux 32 and 64 bit, right now it
     // only uses 64 bit
     if isSbmJob {
-        var buildNumList []int64
         activeConfigurations := reflect.ValueOf(jobDetails["activeConfigurations"])
 
         for i:=0; i<activeConfigurations.Len(); i++ {
@@ -175,32 +221,123 @@ func jobBuildHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[
                         return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
                     }
 
+                    oldJob.Url = "http://" + client.Hostname + ":" + client.Port + "/job/" + job + "/" + config
+
                     var hello map[string]interface{}
                     err = json.Unmarshal(result, &hello)
-
                     tmpBuildList := reflect.ValueOf(hello["builds"])
+
                     for j:=0; j<tmpBuildList.Len(); j++ {
                         tmp = tmpBuildList.Index(j).Interface()
                         buildList, ok := tmp.(map[string]interface{})
                         if ok {
                             // don't ask me why...fix it later
                             floatNum := strconv.FormatFloat(buildList["number"].(float64), 'f', -1, 64)
-                            intNum, _ := strconv.ParseInt(floatNum, 10, 64)
-                            buildNumList = append(buildNumList, intNum)
+                            buildNum, _ := strconv.ParseInt(floatNum, 10, 64)
+                                
+                            buildNumList = append(buildNumList, buildNum)
+
+                            if build != "" {
+                                result, err := client.Execute("/job/" + job + "/" + config + "/" + floatNum + "/api/json", "GET")
+                                if err != nil {
+                                    r1util.LogError("Failed to execute rest call")
+                                    return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
+                                }
+
+                                var goodbye map[string]interface{}
+                                err = json.Unmarshal(result, &goodbye)
+
+                                tmpArtifacts := reflect.ValueOf(goodbye["artifacts"]) 
+                                if strings.EqualFold(goodbye["result"].(string), "SUCCESS") {
+                                    oldJob.Successful = true
+                                }
+
+                                for k:=0; k<tmpArtifacts.Len(); k++ {
+                                    tmp = tmpArtifacts.Index(k).Interface()
+                                    artifacts, ok := tmp.(map[string]interface{})
+                                    if ok {
+                                        if strings.EqualFold(build, floatNum) {
+                                            buildFound = true
+                                            if (strings.Contains(artifacts["fileName"].(string), ".deb")) {
+                                                url := "http://" + client.Hostname + ":" + client.Port + "/job/" + job + "/" + config + "/" + floatNum + "/artifact/" + artifacts["relativePath"].(string) 
+                                                artifactList = append(artifactList, url)
+                                            }
+                                        }
+                                    }
+                                }
+                            }//end if for artifacts
                         }
                     }
                 }
             }
         }
+
+        oldJob.Artifacts = artifactList
         jobObj.Builds = buildNumList
+
+    } else {
+        //var buildNumList []int64
+        buildList := reflect.ValueOf(jobDetails["builds"])
+        for i:=0; i<buildList.Len(); i++ {
+            var tmp interface{} = buildList.Index(i).Interface()
+            tmpBuild, ok := tmp.(map[string]interface{})
+
+            if ok {
+                oldJob.Url = "http://" + client.Hostname + ":" + client.Port + "/job/" + job
+
+                floatNum := strconv.FormatFloat(tmpBuild["number"].(float64), 'f', -1, 64)
+                buildNum, _ := strconv.ParseInt(floatNum, 10, 64)
+            
+                buildNumList = append(buildNumList, buildNum)
+
+                if build != "" {
+                    result, err := client.Execute("/job/" + job + "/" + floatNum + "/api/json", "GET")
+                    if err != nil {
+                        r1util.LogError("Failed to execute rest call")
+                        return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
+                    }
+
+                    var goodbye map[string]interface{}
+                    err = json.Unmarshal(result, &goodbye)
+
+                    tmpArtifacts := reflect.ValueOf(goodbye["artifacts"]) 
+                    if strings.EqualFold(goodbye["result"].(string), "SUCCESS") {
+                        oldJob.Successful = true
+                    }
+
+                    for k:=0; k<tmpArtifacts.Len(); k++ {
+                        tmp = tmpArtifacts.Index(k).Interface()
+                        artifacts, ok := tmp.(map[string]interface{})
+                        if ok {
+                            if strings.EqualFold(build, floatNum) {
+                                fmt.Printf("%v", artifacts)
+                                buildFound = true
+                                if (strings.Contains(artifacts["fileName"].(string), ".deb")) {
+                                    url := "http://" + client.Hostname + "/job/" + job + "/" + floatNum + "/artifact/" + artifacts["relativePath"].(string) 
+                                    artifactList = append(artifactList, url)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        oldJob.Artifacts = artifactList
+        jobObj.Builds= buildNumList
     }
 
-    bytes, err := json.Marshal(jobObj)
+    var bytes []byte
+    if build != "" && buildFound {
+        bytes, err = json.Marshal(oldJob)
+    } else if build != "" && !buildFound{
+        r1util.LogError("Couldn't find the build")
+        return &r1util.AppError{nil, "Couldn't find the build.", 500}
+    } else {
+        bytes, err = json.Marshal(jobObj)
+    }
     if err != nil {
-        r1util.LogError("Failed to create JSON for complete job history")
-        return &r1util.AppError{err, "Failed to create JSON for complete job history: " + err.Error(), 500}
+        r1util.LogError("Failed to create JSON for complete job")
     }
-
     resp.Header().Set("Content-Type", "application/json")
     resp.Write(bytes)
     
@@ -339,53 +476,52 @@ func authHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[stri
 }
 
 func systemsHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
-    client, err := CreateRestClient("10.80.199.100", "9292")
-    if err != nil {
-        r1util.LogError("Failed to create rest client")
-        return &r1util.AppError{err, "Failed to create rest client: " + err.Error(), 500}
-    }
 
-    result, err := client.Execute("/systems", "GET")
+    b, err := json.Marshal(systems)
     if err != nil {
-        r1util.LogError("Failed to execute rest call")
-        return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
+        r1util.LogError("Failed to get systems")
+        return &r1util.AppError{err, "Failed to get systems: " + err.Error(), 500}
     }
 
     resp.Header().Set("Content-Type", "application/json")
-    resp.Write(result)
+    resp.Write(b)
     return nil
 }
 
 func systemsPackagesHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
 
-    system := parsedURL["system"]
+    theSystem := parsedURL["system"]
+    found := false
 
-    client, err := CreateRestClient("10.80.199.100", "9292")
-    if err != nil {
-        r1util.LogError("Failed to create rest client")
-        return &r1util.AppError{err, "Failed to create rest client: " + err.Error(), 500}
+    for _, system := range systems {
+        if strings.EqualFold(system.System, theSystem) {
+            found = true
+            result, err := json.Marshal(system.Packages)
+            if err != nil {
+                r1util.LogError("Failed to get packages")
+                return &r1util.AppError{err, "Failed to get packages: " + err.Error(), 500}
+            }
+            resp.Write(result)
+        }
     }
-
-    result, err := client.Execute("/systems/" + system, "GET")
-    if err != nil {
-        r1util.LogError("Failed to execute rest call")
-        return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
+    
+    if !found {
+        resp.Write([]byte("System not found"))
     }
 
     resp.Header().Set("Content-Type", "application/json")
-    resp.Write(result)
     return nil
 }
 
 func initializeArtifactsHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
     
-    client, err := CreateRestClient("10.80.199.100", "9292")
+    client, err := CreateRestClient("localhost", "4030")
     if err != nil {
         r1util.LogError("Failed to create rest client")
         return &r1util.AppError{err, "Failed to create rest client: " + err.Error(), 500}
     }
 
-    result, err := client.Execute("/jobs", "GET")
+    result, err := client.Execute("/rest/jobs", "GET")
     if err != nil {
         r1util.LogError("Failed to execute rest call")
         return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
@@ -394,22 +530,13 @@ func initializeArtifactsHandler(resp http.ResponseWriter, req *http.Request, par
     var jobList []string = make([]string, 0, 0)
     err = json.Unmarshal(result, &jobList)
     
-    result, err = client.Execute("/systems", "GET")
-    if err != nil {
-        r1util.LogError("Failed to execute rest call")
-        return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
-    }
-
-    var systemList []string = make([]string, 0, 0)
-    err = json.Unmarshal(result, &systemList)
-
     var jobHistoryList []JobHistory
 
     for _, job := range jobList {
 
         jobHistory := new(JobHistory)
 
-        result, err := client.Execute("/jobs" + "/" + job, "GET")
+        result, err := client.Execute("/rest/jobs" + "/" + job, "GET")
         if err != nil {
             r1util.LogError("Failed to execute rest call")
             return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
@@ -422,7 +549,7 @@ func initializeArtifactsHandler(resp http.ResponseWriter, req *http.Request, par
 
         for _, build := range jobObj.Builds {
             buildNum := strconv.FormatInt(build, 10)
-            result, err := client.Execute("/jobs" + "/" + job + "/" + buildNum, "GET")
+            result, err := client.Execute("/rest/jobs" + "/" + job + "/" + buildNum, "GET")
             if err != nil {
                 r1util.LogError("Failed to execute rest call")
                 return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
@@ -573,19 +700,19 @@ func artifactsHandler(resp http.ResponseWriter, req *http.Request, parsedURL map
 
 func initializeSystemArtifactsHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
 
-    client, err := CreateRestClient("10.80.199.100", "9292")
+    client, err := CreateRestClient("localhost", "4030")
     if err != nil {
         r1util.LogError("Failed to create rest client")
         return &r1util.AppError{err, "Failed to create rest client: " + err.Error(), 500}
     }
 
-    result, err := client.Execute("/systems", "GET")
+    result, err := client.Execute("/rest/systems", "GET")
     if err != nil {
         r1util.LogError("Failed to execute rest call")
         return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
     }
     
-    var systemList []string = make([]string, 0, 0)
+    var systemList []System
     err = json.Unmarshal(result, &systemList)
     if err != nil {
         r1util.LogError("Failed to create system list")
@@ -605,28 +732,13 @@ func initializeSystemArtifactsHandler(resp http.ResponseWriter, req *http.Reques
     var artifactList []Artifact
 
     for _, system := range systemList {
-        result, err := client.Execute("/systems/" + system, "GET")
-        if err != nil {
-            r1util.LogError("Failed to execute rest call")
-            return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
-        }
-
-        var sysPackageList []string = make([]string, 0, 0)
-        err = json.Unmarshal(result, &sysPackageList)
-        if err != nil {
-            r1util.LogError("Failed to system package list")
-            return &r1util.AppError{err, "Failed to create system package list: " + err.Error(), 500}
-        }
-
-        for _, sysPackage := range sysPackageList {
+        for _, sysPackage := range system.Packages {
             for _, job := range jobHistoryList {
                 for _, buildHistory := range job.BuildHistory {
                     for _, artifact := range buildHistory.Artifacts {
                         if (strings.EqualFold(artifact.Name, sysPackage)) {
-                            //fmt.Println(sysPackage + " " + job.JobName + " "+ artifact.Name + " " + artifact.Job + " " + artifact.Version)
                             tmp := exists(artifactList, artifact)
                             if !tmp {
-                                //fmt.Println(sysPackage + " " + job.JobName + " "+ artifact.Name + " " + artifact.Job + " " + artifact.Version)
                                 artifactList = append(artifactList, artifact)
                             }
                         }
@@ -640,7 +752,7 @@ func initializeSystemArtifactsHandler(resp http.ResponseWriter, req *http.Reques
             r1util.LogError("Failed to create JSON for system artifact list")
             return &r1util.AppError{err, "Failed to create JSON for system artifact list: " + err.Error(), 500}
         }
-        fileName := "/home/jkwon/Git/releaseBuilder/BuildHistory/" + system + ".Artifacts.json"
+        fileName := "/home/jkwon/Git/releaseBuilder/BuildHistory/" + system.System + ".Artifacts.json"
         err = ioutil.WriteFile(fileName, bytes, 0644)
     }
 
@@ -685,26 +797,290 @@ func systemArtifactsHandler(resp http.ResponseWriter, req *http.Request, parsedU
     return nil
 }
 
+func buildVersionHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
+    bytes, err := ioutil.ReadFile("/Builds/Cloud/versions.json")
+    if err != nil {
+        r1util.LogError("Failed to read system artifacts list")
+        return &r1util.AppError{err, "Failed to read version list: " + err.Error(), 500}
+    }
+
+    var buildVersionList []BuildVersion
+    var versionList []string
+    json.Unmarshal(bytes, &buildVersionList)
+
+    for _, version := range buildVersionList {
+        versionList = append(versionList, version.Version)
+    }
+
+    bytes, err = json.Marshal(versionList)
+    if err != nil {
+        r1util.LogError("Failed to read system artifacts list")
+        return &r1util.AppError{err, "Failed to get version list: " + err.Error(), 500}
+    }
+
+    resp.Header().Set("Content-Type", "application/json")
+    resp.Header().Set("Access-Control-Allow-Origin", "*")
+    resp.Write(bytes)
+    
+    return nil
+}
+
+func getBuildVersionInfoHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
+    versionGiven := parsedURL["version"]
+    
+    bytes, err := ioutil.ReadFile("/Builds/Cloud/versions.json")
+    if err != nil {
+        r1util.LogError("Failed to read system artifacts list")
+        return &r1util.AppError{err, "Failed to read version list: " + err.Error(), 500}
+    }
+
+    var buildVersionList []BuildVersion
+    var versionInfo BuildVersion
+    json.Unmarshal(bytes, &buildVersionList)
+
+    for _, version := range buildVersionList {
+        if strings.EqualFold(versionGiven, version.Version) {
+            versionInfo = version
+        }
+    }
+
+    bytes, err = json.Marshal(versionInfo)
+    if err != nil {
+        r1util.LogError("Failed to read system artifacts list")
+        return &r1util.AppError{err, "Failed to get version list: " + err.Error(), 500}
+    }
+
+    resp.Header().Set("Content-Type", "application/json")
+    resp.Header().Set("Access-Control-Allow-Origin", "*")
+    resp.Write(bytes)
+
+    return nil
+}
+
+func downloadBuildVersionHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
+    versionGiven := parsedURL["version"]
+
+    found := false
+    dir := "/Builds/Cloud/" + versionGiven
+
+    b, err := ioutil.ReadFile("/Builds/Cloud/versions.json")
+    if err != nil {
+        r1util.LogError("Failed to read version list")
+        return &r1util.AppError{err, "Failed to read version list: " + err.Error(), 500}
+    }
+
+    var buildVersionList []BuildVersion
+    json.Unmarshal(b, &buildVersionList)
+    for _, version := range buildVersionList {
+        if version.Version == versionGiven {
+            found = true
+            break
+        }
+    }
+  
+    if found {
+        Filename := "release_" + versionGiven + ".tar.gz"
+
+        Openfile, err := os.Open(dir + "/release.tar.gz")
+        defer Openfile.Close() //Close after function return
+        if err != nil {
+            r1util.LogError("Failed to open file")
+            return &r1util.AppError{err, "Failed to open file: " + err.Error(), 500}
+        }
+
+        FileHeader := make([]byte, 512)
+        Openfile.Read(FileHeader)
+        FileContentType := http.DetectContentType(FileHeader)
+
+        FileStat, _ := Openfile.Stat()
+        FileSize := strconv.FormatInt(FileStat.Size(), 10)
+    
+        resp.Header().Set("Content-Disposition", "attachment; filename="+Filename)
+        resp.Header().Set("Content-Type", FileContentType)
+        resp.Header().Set("Content-Length", FileSize)
+
+        Openfile.Seek(0, 0)
+        io.Copy(resp, Openfile) //'Copy' the file to the client
+    }
+    
+    return nil
+}
+
+
 func initializeBuildHandler(resp http.ResponseWriter, req *http.Request, parsedURL map[string]string) *r1util.AppError {
-    fmt.Printf("%v", req);
+
+    var newBuild BuildVersion
+    baseDir := "/Builds/Cloud/"
+
     bytes, err := ioutil.ReadAll(req.Body)
     if err != nil {
         r1util.LogError("Failed to execute rest call: " + err.Error())
     }
-    fmt.Printf("%v", string(bytes))
-    /*
-    client, err := CreateRestClient("10.80.199.100", "9292")
-    if err != nil {
-        r1util.LogError("Failed to create rest client")
-        return &r1util.AppError{err, "Failed to create rest client: " + err.Error(), 500}
+    json.Unmarshal(bytes, &newBuild)
+    
+    versionDir := baseDir + newBuild.Version
+    os.Mkdir(versionDir, 0777)
+
+    for _, system := range newBuild.Systems {
+        if len(system.Artifacts) > 0 {
+            var systemDir string
+            fmt.Println("**************************************************")
+            fmt.Printf("%v\n", system.System)
+            fmt.Println("**************************************************")
+            for _, artifact := range system.Artifacts {
+
+                systemDir = versionDir + "/" + system.System
+                os.Mkdir(systemDir, 0777)
+
+                fmt.Println(systemDir + "/" + artifact.Name + "_" + artifact.Version + ".deb")
+
+                file, err := os.Create(systemDir + "/" + artifact.Name + "_" + artifact.Version + ".deb")
+                if err != nil {
+                    fmt.Println("Failed to create file: " + err.Error())
+                }
+                defer file.Close()
+
+                res, err := http.Get(artifact.Url)
+                if err != nil {
+                    fmt.Println("Failed to download file: " + err.Error())
+                }
+                defer res.Body.Close()
+                
+                file_content, err := ioutil.ReadAll(res.Body)
+                if err != nil {
+                    fmt.Println("Failed to obtain file contents: " + err.Error())
+                }
+
+                _, err = file.Write(file_content)
+                if err != nil {
+                    fmt.Println("Failed to write to file: " + err.Error())
+                }
+            }
+
+            tarDir := versionDir + "/release"
+            os.Mkdir(tarDir, 0777)
+
+            files, err := ioutil.ReadDir(systemDir)
+            if err != nil {
+                fmt.Println("Failed to obtain directory list for tar: " + err.Error())
+            }
+
+            file, err := os.Create(tarDir + "/" + system.System + ".tar.gz")
+            if err != nil {
+                fmt.Println("Failed to create tar: " + err.Error())
+            }
+
+            gw := gzip.NewWriter(file)
+            defer gw.Close()
+            tw := tar.NewWriter(gw)
+            defer tw.Close()
+
+            for _, file := range files {
+                if err := addFile(tw, systemDir + "/" + file.Name()); err != nil {
+                    fmt.Println(file.Name())
+                    fmt.Println("Failed to add file for tar: " + err.Error())
+                }
+            }
+        }
     }
 
-    result, err := client.Execute("/systems", "GET")
+    b, err := json.Marshal(newBuild)
     if err != nil {
-        r1util.LogError("Failed to execute rest call")
-        return &r1util.AppError{err, "Failed to execute rest call: " + err.Error(), 500}
+        return &r1util.AppError{err, "Error sending jobs: " + err.Error(), 500}
     }
-    */
+
+    err = ioutil.WriteFile(versionDir + "/info.json", b, 0644)
+    if err != nil {
+        return &r1util.AppError{err, "Error creating info.json: " + err.Error(), 500}
+    }
+
+    var buildVersionList []BuildVersion
+    if _, err := os.Stat(baseDir + "/versions.json"); os.IsNotExist(err) {
+        _, err := os.Create(baseDir + "/versions.json")
+        if err != nil {
+            return &r1util.AppError{err, "Error creating version.json: " + err.Error(), 500}
+        }
+    } else {
+        b, err = ioutil.ReadFile(baseDir + "/versions.json")
+        if err != nil {
+            return &r1util.AppError{err, "Error getting versions: " + err.Error(), 500}
+        }
+
+        err = json.Unmarshal(b, &buildVersionList)
+        if err != nil {
+            return &r1util.AppError{err, "Error getting versions: " + err.Error(), 500}
+        }
+    }
+       
+
+    buildVersionList = append(buildVersionList, newBuild)
+    b, err = json.Marshal(buildVersionList)
+    if err != nil {
+        return &r1util.AppError{err, "Error sending jobs: " + err.Error(), 500}
+    }
+
+    err = ioutil.WriteFile(baseDir + "/versions.json", b, 0644)
+    if err != nil {
+        return &r1util.AppError{err, "Error creating versions.json: " + err.Error(), 500}
+    }
+
+    compressSystemPackages(versionDir+"/release.tar.gz",versionDir + "/release", versionDir)
+    if err != nil {
+        return &r1util.AppError{err, "Error compressing release file: " + err.Error(), 500}
+    }
+
+    resp.Header().Set("Content-Type", "application/json")
+    resp.Write(b)
+    return nil
+}
+
+func compressSystemPackages(fileLocation string, target string, versionDir string) {
+    files, err := ioutil.ReadDir(target)
+    if err != nil {
+        fmt.Println("Failed to obtain directory list for tar: " + err.Error())
+    }
+
+    file, err := os.Create(fileLocation)
+    if err != nil {
+        fmt.Println("Failed to create tar: " + err.Error())
+    }
+
+    gw := gzip.NewWriter(file)
+    defer gw.Close()
+    tw := tar.NewWriter(gw)
+    defer tw.Close()
+
+    for _, file := range files {
+        fmt.Println(file.Name())
+        if err := addFile(tw, versionDir + "/release/" + file.Name()); err != nil {
+            fmt.Println("Failed to add file for tar: " + err.Error())
+        }
+    }
+    
+}
+
+func addFile(tw * tar.Writer, path string) error {
+    file, err := os.Open(path)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    if stat, err := file.Stat(); err == nil {
+        // now lets create the header as needed for this file within the tarball        
+        header := new(tar.Header)
+        header.Name = path
+        header.Size = stat.Size()
+        header.Mode = int64(stat.Mode())
+        header.ModTime = stat.ModTime()
+        // write the header to the tarball archive
+        if err := tw.WriteHeader(header); err != nil {
+            return err
+        }
+        // copy the file data to the tarball 
+        if _, err := io.Copy(tw, file); err != nil {
+            return err
+        }
+    }
     return nil
 }
 

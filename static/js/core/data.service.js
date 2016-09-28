@@ -17,7 +17,12 @@
         var service = {
             auth:               auth,
             getSystems:         getSystems,
-            getArtifacts:       getArtifacts
+            getSystemPackages:  getSystemPackages,
+            getArtifacts:       getArtifacts,
+            processBuild:       processBuild,
+            getBuildVersions:   getBuildVersions,
+            getVersionPackages: getVersionPackages,
+            downloadVersion:    downloadVersion
         };
 
         return service;
@@ -64,15 +69,91 @@
             });
         }
 
-        function getArtifacts() {
+        function getSystemPackages(system) {
             return $http({
                 method: 'GET',
-                url: server + '/artifacts'
+                url: server + '/systems/' + system
+            })
+            .then(function(data, status, headers, config) {
+                return data;
+            }, function(error) {
+                console.log('XHR failed for getting system packages');
+                console.log(error);
+                return error;
+            });
+        }
+
+        function getArtifacts(system) {
+            return $http({
+                method: 'GET',
+                url: server + '/' + system + '/artifacts'
             })
             .then(function(data, status, headers, config) {
                 return data;
             }, function(error) {
                 console.log('XHR failed for getting artifacts');
+                console.log(error);
+                return error;
+            });
+        }
+
+        function processBuild(version, systemPackageList) {
+            angular.toJson(systemPackageList);
+            var build = {
+                'Version': version,
+                'SysPackageList': systemPackageList
+            };
+            return $http({
+                method: 'POST',
+                url: server + '/build',
+                data: build
+            })
+            .then(function(data, status, headers, config) {
+                return data;
+            }, function(error) {
+                console.log('XHR failed for posting build information');
+                console.log(error);
+                return error;
+            });
+        }
+
+        function getBuildVersions() {
+            return $http({
+                method: 'GET',
+                url: server + '/build/versions'
+            })
+            .then(function(data, status, headers, config) {
+                return data;
+            }, function(error) {
+                console.log('XHR failed for getting build versions');
+                console.log(error);
+                return error;
+            });
+        }
+
+        function getVersionPackages(version) {
+            return $http({
+                method: 'GET',
+                url: server + '/build/' + version
+            })
+            .then(function(data, status, headers, config) {
+                return data;
+            }, function(error) {
+                console.log('XHR failed for getting build version packages');
+                console.log(error);
+                return error;
+            });
+        }
+
+        function downloadVersion(version) {
+            return $http( {
+                method: 'GET',
+                url: server + '/build/' + version + '/download'
+            })
+            .then(function(data, status, headers, config) {
+                return data;
+            }, function(error) {
+                console.log('XHR failed for downloading release');
                 console.log(error);
                 return error;
             });

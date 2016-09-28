@@ -1,0 +1,33 @@
+[
+    {
+        "System": "r1rm",
+        "Packages": ["c247cis","ufw-r1rm","r1rm","c247mon"]
+    },
+    {
+        "System": "r1cm",
+        "Packages": ["c247cis","ufw-r1cm","r1cm","c247mon"]
+    },
+    {
+        "System": "cloud",
+        "Packages": ["c247cis", "cloud-sbm","ufw-cloud","r1soft-docstore","dr-tools",
+                        "serverbackup-manager","serverbackup-enterprise","serverbackup-setup",
+                        "r1ctl-cloud","r1scsi","c247tools","c247skiff","c247mon"]
+    },
+    {
+        "System": "ftp",
+        "Packages": ["c247cis","ufw-ftp","r1ctl-ftp", "c247skiff", "r1scsifs", "c247mon",
+                        "serverbackup-agent","serverbackup-async-agent-2-6", "serverbackup-enterprise-agent", "serverbackup-setup"]
+    },
+    {
+        "System": "site",
+        "Packages": ["site-sbm","ufw-site","c247cis","r1soft-docstore","dr-tools","serverbackup-manager","serverbackup-enterprise","serverbackup-setup","r1ctl","r1scsi","r1scsifs"]
+    },
+    {
+        "System": "seed",
+        "Packages": ["site-sbm","ufw-site","c247cis","r1soft-docstore","dr-tools","serverbackup-manager","serverbackup-enterprise","serverbackup-setup","r1ctl-sdstation","sdstation","r1scsi"]
+    },
+    {
+        "System": "print",
+        "Packages": ["site-sbm","ufw-site","c247cis","r1soft-docstore","dr-tools","serverbackup-manager","serverbackup-enterprise","serverbackup-setup","r1ctl-pstation","r1scsi"]
+    }
+]

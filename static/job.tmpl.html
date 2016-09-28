@@ -1,19 +1,26 @@
-<div ng-repeat="item in jobs" layout-align="top center">
+<div ng-repeat="system in systems track by $index" layout-align="top center" class="well sm">
+        <div ng-init="systemPackages(system.Name)">
+            <div ng-repeat="package in getSystemNames(system.Name)" style="float:left; padding-right:9px">
+                <md-checkbox ng-checked="exists(package, system.SelectedArtifacts)" ng-disabled="true">
+                    {{package}}
+                </md-checkbox>
+            </div>
+        </div>
     <md-toolbar md-theme="lightTheme" style="margin-bottom:10px;min-height:40px; height:40px; background:rgba(3,169,244, 0.4)">
         <md-button class="md-icon-button" ng-click="showArtifactList()" style="position:absolute">
             <i class="material-icons">expand_more</i>
         </md-button>
-        <h1 class="md-toolbar-tools" style="padding-left:45px"> {{item}} </h1>
-        <md-button class="md-icon-button" ng-click="showPrompt($event)" style="position:absolute; right:0px; top:0px">
+        <h1 class="md-toolbar-tools" style="padding-left:45px"> {{system.Name}} </h1>
+        <md-button class="md-icon-button" ng-click="showSelectArtifactPrompt($event, system.Name, system.SelectedArtifacts)" style="position:absolute; right:0px; top:0px">
             <i class="material-icons">add_circle</i>
         </md-button>
     </md-toolbar>
     <md-list layout="column">
-        <md-list-item class="md-1-line" ng-repeat="artifact in item.artifacts track by $index">
+        <md-list-item class="md-1-line" ng-repeat="artifact in system.SelectedArtifacts track by $index">
             <div class="md-list-item-text" layout="column">
-                {{artifact}}
+                {{artifact.Name}} | Version: {{artifact.Version}} | Job: {{artifact.Job}}
             </div>
-            <md-button class="md-secondary" ng-click="deleteArtifact(artifact, item.artifacts)">
+            <md-button class="md-secondary" ng-click="deleteArtifact(artifact, system.SelectedArtifacts)" style="padding-top: 6px;height: 25px;">
                 <i class="material-icons">clear</i>
             </md-button>
         </md-list-item>
